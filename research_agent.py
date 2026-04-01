@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai  # ← ここが最新の部品に変わりました
 import requests
 import time
 
@@ -23,20 +23,14 @@ def check_password():
 
 # --- 論文検索用関数（Semantic Scholar APIを使用） ---
 def fetch_real_papers(query, limit=5):
-    """実在する学術論文のデータを外部APIから取得する（査読付きジャーナルを優先）"""
-    # fieldsでタイトル、著者、年、要旨、URL、出版タイプを指定
     url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit={limit}&fields=title,authors,year,abstract,url,publicationTypes"
-    
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()
-        
         valid_papers = []
         for paper in data.get('data', []):
-            # 要旨(abstract)が存在するものだけを抽出
             if paper.get('abstract'):
-                # 著者名の整形
                 authors = ", ".join([a['name'] for a in paper.get('authors', [])])
                 valid_papers.append({
                     "title": paper.get('title', 'No Title'),
@@ -69,25 +63,18 @@ if check_password():
         elif not research_theme:
             st.error("研究テーマを入力してください。")
         else:
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')
-
             with st.spinner("ステップ1/2: 世界中の学術データベースから実在する論文を検索中..."):
-                # Semantic Scholarから実データを取得
                 papers = fetch_real_papers(research_theme, limit=paper_count)
-                time.sleep(1) # API制限回避の待機
+                time.sleep(1) 
 
             if not papers:
-                st.warning("有効なアブストラクト（要旨）を持つ論文が見つかりませんでした。キーワードを変えて（英語にするなど）再度お試しください。")
+                st.warning("有効なアブストラクト（要旨）を持つ論文が見つかりませんでした。キーワードを変えて再度お試しください。")
             else:
                 with st.spinner(f"ステップ2/2: 見つかった {len(papers)} 件の論文データをAIに読み込ませ、統合サマリーを執筆中..."):
-                    
-                    # AIに渡すための「論文テキストデータ」を作成
                     papers_text = ""
                     for i, p in enumerate(papers, 1):
                         papers_text += f"【論文{i}】\nTitle: {p['title']}\nYear: {p['year']}\nAuthors: {p['authors']}\nAbstract: {p['abstract']}\nURL: {p['url']}\n\n"
 
-                    # 統合サマリーを作らせる強力なプロンプト
                     summary_prompt = f"""
                     あなたは優秀なシニアリサーチャー（ポスドククラス）です。
                     以下の「実際の論文データ」のみを情報源として、指定されたテーマに関する包括的なサマリーレポートを日本語で作成してください。
@@ -107,13 +94,15 @@ if check_password():
                     """
 
                     try:
-                        response = model.generate_content(summary_prompt)
+                        # ↓ 最新のAPI呼び出し方法に変更しました ↓
+                        client = genai.Client(api_key=api_key)
+                        response = client.models.generate_content(
+                            model='gemini-2.5-flash',
+                            contents=summary_prompt
+                        )
                         st.success("✅ リサーチレポートの作成が完了しました！")
-                        
-                        # 結果の表示
                         st.markdown(response.text)
                         
-                        # 念のため、取得した生データもアコーディオンで表示
                         with st.expander("🔍 AIが読み込んだ元の論文データ（生のアブストラクト）を確認する"):
                             for p in papers:
                                 st.markdown(f"**[{p['title']}]({p['url']})** ({p['year']})")
