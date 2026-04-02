@@ -118,7 +118,6 @@ def fetch_openalex(query, limit):
     for item in response.json().get("results", []):
         inv_index = item.get("abstract_inverted_index")
         if inv_index:
-            # 圧縮された要旨データを復元
             max_idx = max([max(positions) for positions in inv_index.values()])
             words = [""] * (max_idx + 1)
             for word, positions in inv_index.items():
@@ -176,53 +175,4 @@ if check_password():
                     if "Semantic Scholar" in engine_choice: papers = fetch_semantic_scholar(research_theme, paper_count)
                     elif "CiNii" in engine_choice: papers = fetch_cinii(research_theme, paper_count)
                     elif "PubMed" in engine_choice: papers = fetch_pubmed(research_theme, paper_count)
-                    elif "arXiv" in engine_choice: papers = fetch_arxiv(research_theme, paper_count)
-                    elif "OpenAlex" in engine_choice: papers = fetch_openalex(research_theme, paper_count)
-                    time.sleep(1)
-                except Exception as e:
-                    st.error(f"データベース通信エラー: {e}")
-                    papers = []
-
-            if not papers:
-                st.warning("アブストラクト（要旨）を持つ論文データが取得できませんでした。キーワードを変えるか、検索エンジンを切り替えてみてください。")
-            else:
-                with st.spinner(f"ステップ2/2: 見つかった {len(papers)} 件の論文データをAIに読み込ませ、統合サマリーを執筆中..."):
-                    papers_text = ""
-                    for i, p in enumerate(papers, 1):
-                        papers_text += f"【論文{i}】\nTitle: {p['title']}\nYear: {p['year']}\nAuthors: {p['authors']}\nAbstract: {p['abstract']}\nURL: {p['url']}\n\n"
-
-                    summary_prompt = f"""
-                    あなたは優秀なシニアリサーチャーです。
-                    以下の「実際の論文データ」のみを情報源として、指定されたテーマに関する包括的なサマリーレポートを日本語で作成してください。
-                    
-                    【テーマ】{research_theme}
-                    
-                    【厳守事項】
-                    1. 決してあなたの事前知識で架空の論文を作らないでください。必ず以下の【実際の論文データ】の内容のみに基づいて記述してください。
-                    2. レポートは以下の構成で出力してください。
-                       - はじめに（このテーマの現在の重要性）
-                       - 収集した論文の統合サマリー（トレンド、主要な発見、見解の対立など）
-                       - 今後の研究の余地（ギャップ）
-                       - 参考文献リスト（タイトル、著者、発行年、URLをリスト化）
-
-                    【実際の論文データ】
-                    {papers_text}
-                    """
-
-                    try:
-                        client = genai.Client(api_key=api_key)
-                        response = client.models.generate_content(
-                            model='gemini-2.5-flash',
-                            contents=summary_prompt
-                        )
-                        st.success(f"✅ 【{engine_choice}】のデータに基づくレポートが完成しました！")
-                        st.markdown(response.text)
-                        
-                        with st.expander("🔍 AIが読み込んだ元の論文データ（生のアブストラクト）を確認する"):
-                            for p in papers:
-                                st.markdown(f"**[{p['title']}]({p['url']})** ({p['year']})")
-                                st.caption(p['abstract'])
-                                st.divider()
-
-                    except Exception as e:
-                        st.error(f"サマリー生成中にエラーが発生しました: {e}")
+                    elif "arXiv" in engine_choice: papers = fetch_arxiv(research_
